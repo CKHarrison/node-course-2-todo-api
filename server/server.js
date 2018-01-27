@@ -1,7 +1,8 @@
+const _ = require('lodash');
 const express = require('express');
 const bodyParser = require('body-parser');
-
 const {ObjectID} = require('mongodb');
+
 var {mongoose} = require('./db/mongoose');
 var {Todo} = require('./models/todo');
 var {User} = require('./models/user');
@@ -77,6 +78,35 @@ app.delete('/todos/:id', (req, res) => {
     }).catch((e) => {
         return res.status(400).send();
     });
+});
+
+// Patch route, we are using the patch instead of put, because we are only modifying a subset of properties, not the entire thing. 
+app.patch('/todos/:id', (req, res) => {
+    let id = req.params.id;
+    // picking only the items that can be modified 
+    let body = _.pick(req.body, ['text', 'completed']);
+
+    if (!ObjectID.isValid(id)) {
+        return res.status(404).send();
+    }
+    // Checking to see if the commpleted @ property exists as a boolean and is true set the new completed date
+    if(_.isBoolean(body.completed) && body.completed) {
+        body.completedAt = new Date().getTime();
+    } else {
+        // if completedAt is not a boolean or is not true, set it to false, and remove the completedAt property
+        body.completed = false;
+        body.completedAt = null;
+    }
+    // updating the todo in the database, by finding the id, setting the new body. if confused look at mongodb for $set and new methods
+    Todo.findByIdAndUpdate(id, {$set: body}, {new: true}).then((todo) => {
+        if(!todo) {
+            return res.status(404).send();
+        }
+
+        res.send({todo});
+    }).catch((e) => {
+        res.status(400).send();
+    })
 });
 
 app.listen(port, () => {
