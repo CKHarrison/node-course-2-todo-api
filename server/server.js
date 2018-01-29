@@ -126,6 +126,22 @@ app.post('/users', (req, res) => {
     });
 });
 
+// route for logging in users, {email, password}
+// pick email and pass from req body
+// respond with body data
+// make login call from postman and get email and password back
+app.post('/users/login', (req, res) => {
+    const body = _.pick(req.body, ['email', 'password']);
+    
+    User.findByCredentials(body.email, body.password).then((user) => {
+       return user.generateAuthToken().then((token) => {
+           res.header('x-auth', token).send(user);
+        });
+    }).catch((e) => {
+        res.status(400).send();
+    });
+});
+
 
 
 app.get('/users/me', authenticate, (req, res) => {
