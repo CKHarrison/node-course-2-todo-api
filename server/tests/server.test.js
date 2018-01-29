@@ -2,24 +2,13 @@ const expect = require('expect');
 const request = require('supertest');
 const {ObjectID} = require('mongodb');
 
-const { app } = require('./../server');
-const { Todo } = require('./../models/todo');
+const {app} = require('./../server');
+const {Todo} = require('./../models/todo');
+const {User} = require('./../models/user');
+const{todos, populateTodos, users, populateUsers} = require('./seed/seed');
 
-const todos = [{
-    _id: new ObjectID(),
-    text: "First test todo"
-}, {
-    _id: new ObjectID(),
-    text: "Second test todo",
-    completed: true,
-    completedAt: 333
-}];
-
-beforeEach((done) => {
-    Todo.remove({}).then(() => {
-       return Todo.insertMany(todos);
-    }).then(() => done());
-});
+beforeEach(populateUsers);
+beforeEach(populateTodos);
 
 describe('POST /todos', () => {
     it('should create a new todo', (done) => {
@@ -140,16 +129,17 @@ describe('DELETE /todos/:id', () => {
         .expect(404)
         .end(done);
     });
+});
 
-    describe('PATCH /todo/:id', () => {
-        it('Should update the todo', (done) => {
-            // find id of first todo item
-            let hexId = todos[0]._id.toHexString();
-            let text = "Patch testing";
-            // send the patch request with the id and update text and set completed to true
-            request(app)
+describe('PATCH /todo/:id', () => {
+    it('Should update the todo', (done) => {
+        // find id of first todo item
+        let hexId = todos[0]._id.toHexString();
+        let text = "Patch testing";
+        // send the patch request with the id and update text and set completed to true
+        request(app)
             .patch(`/todos/${hexId}`)
-            .send({text, completed: true})
+            .send({ text, completed: true })
             // expect status code of 200
             .expect(200)
             // verify text property is equal to new text, completed is true, and completed at is a number (toBeA)
@@ -159,15 +149,15 @@ describe('DELETE /todos/:id', () => {
                 expect(res.body.todo.completedAt).toBeA('number');
             })
             .end(done);
-        });
-        it('Should clear completedAt when todo is not completed', (done) => {
-            // find id of second todo item
-            let hexId = todos[1]._id.toHexString();
-            let text = "Some different text from testing";
-            request(app)
+    });
+    it('Should clear completedAt when todo is not completed', (done) => {
+        // find id of second todo item
+        let hexId = todos[1]._id.toHexString();
+        let text = "Some different text from testing";
+        request(app)
             .patch(`/todos/${hexId}`)
             // Updated text and set completed to false
-            .send({text, completed: false})
+            .send({ text, completed: false })
             // expect status code of 200
             .expect(200)
             // verify the response body reflects new changes
@@ -177,6 +167,73 @@ describe('DELETE /todos/:id', () => {
                 expect(res.body.todo.completedAt).toNotExist();
             })
             .end(done);
+    });
+});
+
+describe('GET /users/me', () => {
+    it('Should return user if authenticated', (done) => {
+        request(app)
+        .get('/users/me')
+        // setting header, header name is first arg, header value is second arg (token value of first user in user array)
+        .set('x-auth', users[0].tokens[0].token)
+        .expect(200)
+        .expect((res) => {
+            expect(res.body._id).toBe(users[0]._id.toHexString());
+            expect(res.body.email).toBe(users[0].email);
+        })
+        .end(done);
+    });
+    it('Should return 401 if not authenticated', (done) => {
+        request(app)
+        .get('/users/me')
+        .expect(401)
+        .expect((res) => {
+            expect(res.body).toEqual({})
+        })
+        .end(done);
+    });
+});
+
+describe('POST /users', () => {
+    it('Should create a user',(done) => {
+        const email = 'example@example.com';
+        const password = '123mnb!';
+        request(app)
+        .post('/users')
+        .send({email, password})
+        .expect(200)
+        .expect((res) => {
+            expect(res.headers['x-auth']).toExist();
+            expect(res.body._id).toExist();
+            expect(res.body.email).toBe(email);
+        })
+        .end((err) => {
+            if(err) {
+                return done(err);
+            }
+            User.findOne({email}).then((user) => {
+                expect(user).toExist();
+                expect(user.password).toNotBe(password);
+                done();
+            });
         });
+    });
+    it('Shoud return validations errors if request is invalid', (done) => {
+        const email = "example.com";
+        const password = '123';
+        request(app)
+        .post('/users')
+        .send({email, password})
+        .expect(400)
+        .end(done);
+    });
+    it('Should not create user if email is in use', (done) => {
+        const email = users[0].email;
+        const password = 'abc1234';
+        request(app)
+        .post('/users')
+        .send({email, password})
+        .expect(400)
+        .end(done);
     });
 });
