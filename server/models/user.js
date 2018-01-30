@@ -47,7 +47,7 @@ UserSchema.methods.toJSON = function() {
 UserSchema.methods.generateAuthToken = function() {
     const user = this;
     const access = 'auth';
-    const token = jwt.sign({_id: user._id.toHexString(), access}, 'abc123').toString();
+    const token = jwt.sign({ _id: user._id.toHexString(), access }, process.env.JWT_SECRET).toString();
     
     // This is different than the video due to the latest updates to mongoose. Found the answers to this problem at https://www.udemy.com/the-complete-nodejs-developer-course-2/learn/v4/questions/3282680
     user.tokens = user.tokens.concat([{ access, token }]);
@@ -71,7 +71,7 @@ UserSchema.statics.findByToken = function(token) {
     let decoded;
 
     try {
-        decoded = jwt.verify(token, 'abc123');
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch(e) {
         return Promise.reject();
     }
