@@ -65,32 +65,32 @@ app.get('/todos/:id', authenticate, (req, res) => {
 });
 
 // Delete route
-app.delete('/todos/:id', authenticate, (req, res) => {
+app.delete('/todos/:id', authenticate, async (req, res) => {
     // Get the id
-    let id = req.params.id;
+    const id = req.params.id;
 
     // Validate the id, not valid return 404
     if(!ObjectID.isValid(id)) {
         return res.status(404).send();
     }
+    try {
 
-    // remove todo by id
-    Todo.findOneAndRemove({
-        _id: id,
-        _creator: req.user._id
-    }).then((todo) => {
-    // success
-        // if no doc, send 404
-        if(!todo) {
+        // remove todo by id
+        const todo = await Todo.findOneAndRemove({
+            _id: id,
+            _creator: req.user._id
+        });
+        if (!todo) {
             return res.status(404).send();
         }
         // if doc, send doc back with 200
         res.send({todo});
+        
+    } catch (e) {
         // error
         // send 400 with empty body
-    }).catch((e) => {
-        return res.status(400).send();
-    });
+         res.status(400).send();
+    }
 });
 
 // Patch route, we are using the patch instead of put, because we are only modifying a subset of properties, not the entire thing. 
@@ -123,16 +123,17 @@ app.patch('/todos/:id', authenticate, (req, res) => {
 });
 
 // POST /users
-app.post('/users', (req, res) => {
-    let body = _.pick(req.body, ['email', 'password']);
-    let user = new User(body);  
-    user.save().then(() => {
-      return user.generateAuthToken();
-    }).then((token) => {
+app.post('/users', async (req, res) => {
+    try {
+        const body = _.pick(req.body, ['email', 'password']);
+        const user = new User(body);
+
+        await user.save();
+        const token = await user.generateAuthToken();
         res.header('x-auth', token).send(user);
-    }).catch((e) => {
+    } catch (e) {
         res.status(400).send(e);
-    });
+    }
 });
 
 app.get('/users/me', authenticate, (req, res) => {
@@ -140,25 +141,25 @@ app.get('/users/me', authenticate, (req, res) => {
 });
 
 // route for logging in users, {email, password}
-app.post('/users/login', (req, res) => {
-    const body = _.pick(req.body, ['email', 'password']);
-    
-    User.findByCredentials(body.email, body.password).then((user) => {
-       return user.generateAuthToken().then((token) => {
-           res.header('x-auth', token).send(user);
-        });
-    }).catch((e) => {
+app.post('/users/login', async (req, res) => {
+    try {
+        const body = _.pick(req.body, ['email', 'password']);
+        const user = await User.findByCredentials(body.email, body.password);
+        const token = await user.generateAuthToken();
+        res.header('x-auth', token).send(user); 
+    } catch (e) {
         res.status(400).send();
-    });
+    }
 });
 
 // route for logging out users
-app.delete('/users/me/token', authenticate, (req, res) => {
-    req.user.removeToken(req.token).then(() => {
+app.delete('/users/me/token', authenticate, async (req, res) => {
+    try {
+        await req.user.removeToken(req.token);
         res.status(200).send();
-    }, () => {
+    } catch (e) {
         res.status(400).send();
-    });
+    }
 });
 
 app.listen(port, () => {
